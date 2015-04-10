@@ -1,303 +1,324 @@
-#include <stdio.h>
-#include <math.h>
+#include "tmfont.hh"
 
-#include <limits.h>
-#include <stdint.h>
-
-#include <iostream>
-#include <iomanip>
-#include <string>
-#include <sstream>
-#include <fstream>
-#include <vector>
-
-#include <algorithm>
-
-#include <ft2build.h>
-
-#include <FreeImage.h>
-
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-#include FT_IMAGE_H
-
-#include <glyph.hh>
-#include <image.hh>
-
-#include <freetype.hh>
+#include <cstring>
 
 
-std::vector<std::string> &split(const std::string &s, char delim,
-                                std::vector<std::string> &elems)
-{
-    std::stringstream ss(s);
-    std::string item;
-    while(std::getline(ss, item, delim)) {
-        elems.push_back(item);
+namespace tmfont {
+    
+    //--------------------------------------------------------------------------------
+    // Library
+    //--------------------------------------------------------------------------------
+    
+    Library::Library() {
+        FT_Init_FreeType(&_library);
     }
-    return elems;
-}
-
-//-----------------------------------------------------------------------------
-// InitializeLibraries
-//-----------------------------------------------------------------------------
-
-struct InitializeLibraries {
-    InitializeLibraries();
-    ~InitializeLibraries();
-};
-
-InitializeLibraries::InitializeLibraries() {
-    FreeImage_Initialise();
-}
-
-InitializeLibraries::~InitializeLibraries() {
-    FreeImage_DeInitialise();
-}
-
-//-----------------------------------------------------------------------------
-// main
-//-----------------------------------------------------------------------------
-
-int main(int argc, char**  argv )
-{
-
-    int   pt_size   = 12;
-    int   dpi       = 72;
-    int   img_width = 512;
-    int   margin    = 5;
-    float border    = 0.0f;
-    bool  bw        = false;
-    bool  squared   = false;
-    std::string font_filename;   //("FreeSans.ttf");
-    std::string output_filename; //("FreeSans");
-
-    // parse parameters
-    try {
-        std::string       type_st("");
-        for (int i=1;i<argc;i++) {
-            std::vector<std::string> tokens;
-            split(std::string(argv[i]),'=',tokens);
-            if (tokens.size() < 2) {
-                continue;
-            }
-            else if (tokens[0].compare("--pt") == 0) {
-                pt_size = std::stoi(tokens[1]);
-            }
-            else if (tokens[0].compare("--dpi") == 0) {
-                dpi = std::stoi(tokens[1]);
-            }
-            else if (tokens[0].compare("--texwidth") == 0) {
-                img_width = std::stoi(tokens[1]);
-            }
-            else if (tokens[0].compare("--margin") == 0) {
-                margin = std::stoi(tokens[1]);
-            }
-            else if (tokens[0].compare("--border") == 0) {
-                border = std::stof(tokens[1]);
-            }
-            else if (tokens[0].compare("--squared") == 0) {
-                squared = std::stoi(tokens[1]) != 0;
-            }
-            else if (tokens[0].compare("--font") == 0) {
-                font_filename = tokens[1];
-            }
-            else if (tokens[0].compare("--out") == 0) {
-                output_filename = tokens[1];
-            }
-            else if (tokens[0].compare("--bw") == 0) {
-                bw = std::stoi(tokens[1]) != 0;
-            }
+    
+    Library::~Library() {
+        FT_Done_FreeType(_library);
+    }
+    
+    auto Library::face(std::string ttf_filename) -> Face& {
+        auto it = faces.find(ttf_filename);
+        if (it == faces.end()) {
+            auto face = new Face(*this, ttf_filename);
+            faces[ttf_filename].reset(face);
+            return *face;
+        }
+        else {
+            return *it->second.get();
         }
     }
-    catch (...)
-    {}
-
-
-    if (font_filename.size() == 0 || output_filename.size() == 0) {
-        std::cout << "Usage: " << std::endl << std::endl;
-        std::cout << "    tmfont --font=FreeSans.ttf --out=FreeSans" << std::endl << std::endl;
-        std::cout << "Options: " << std::endl;
-        std::cout << "    --pt=12" << std::endl;
-        std::cout << "    --dpi=72" << std::endl;
-        std::cout << "    --texwidth=512" << std::endl;
-        std::cout << "    --margin=5" << std::endl << std::endl;
-        std::cout << "    --border=0.0f" << std::endl;
-        return 0;
-    }
-
-    InitializeLibraries initialize_libraries_raii;
-
-    // create an empty GlyphList
-    GlyphList glyph_list(dpi, pt_size);
-
-
-
-    freetype::Library library;
-    freetype::Face   &face = library.createFace(font_filename);
-    face.setCharSize(pt_size, dpi);
-
-//    {
-//        // load font and
-//        FT_Library    library;
-//        // FT_Face       face;
-//        FT_GlyphSlot  slot;
-//        /* FT_Matrix     matrix;  /\* transformation matrix *\/ */
-//        /* FT_UInt       glyph_index; */
-//        FT_Vector     pen;                    /* untransformed origin  */
-//        FT_Error      error;
-//        error = FT_Init_FreeType( &library );              /* initialize library */
-//        error = FT_New_Face( library, font_filename.c_str(), 0, &face ); /* create face object */
-//        error = FT_Set_Char_Size( face,  pt_size * 64, pt_size * 64, dpi, dpi ); /* set character size */
-        //
-//        float outline_width = 1.0f;
-//        // Set up a stroker.
-//        FT_Stroker stroker;
-//        FT_Stroker_New(library, &stroker);
-//        FT_Stroker_Set(stroker,
-//                       (int)(outline_width * 64),
-//                       FT_STROKER_LINECAP_ROUND,
-//                       FT_STROKER_LINEJOIN_ROUND,
-//                       0);
-//        /* error handling omitted */
-//        slot = face->glyph;
-
-        /* the pen position in 26.6 cartesian space coordinates; */
-        /* start at (300,200) relative to the upper left corner  */
-
-    int code;
-
-    // what to generate?...
-    int       num_ranges  = 1;
-    // freetype::Character ranges[]    = {0,255};
-    // printable ascii chars
-    freetype::Character ranges[]    = {0x20,0x7E};
-    // freetype::Character ranges[]    = {(int) 'O', (int) 'O'};
-    // int ranges[]    = {(int) 'B',(int) 'B'};
-    // int ranges[]    = {(int) 'p',(int) 'p', (int) 't',(int) 't'};
-    /* int ranges[]    = {(int)'/', (int)'/'}; */
-    /* int ranges[]    = {469,469}; */
-
-    int range_index;
-    // int sum_widths = 0;
-    for (range_index=0;range_index<num_ranges;range_index++)
+    
+    //--------------------------------------------------------------------------------
+    // Face
+    //--------------------------------------------------------------------------------
+    
+    Face::Face(Library& library, std::string ttf_filename):
+    library(library)
     {
-        int min_code = ranges[2*range_index];
-        int max_code = ranges[2*range_index+1];
-
-        /* num_glyphs += (ranges[2*range_index+1] - ranges[2*range_index]) + 1; */
-        for (code=min_code;code<=max_code;code++)
-        {
-            printf("generating texture for code %d %c\n",code,(char) code);
-
-            //
-            freetype::Glyph &glyph = face.getGlyph(code);
-
-            //
-            freetype::Spans spans = glyph.render(border);
-
-//            /* ignore errors */
-//            error = FT_Load_Char( face, code, FT_LOAD_RENDER ); // FT_LOAD_RENDER
-//            // error = FT_Load_Char( face, code, FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME | FT_LOAD_RENDER);
-//            if ( error ) {
-//                printf("WARNING: Could not load char code %d\n",code);
-//                continue;
-//            }
-//            std::cout << "    --margin=5" << std::endl << std::endl;
-
-
-            Glyph &g = glyph_list.addGlyph(code,spans.bounds.width(), spans.bounds.height()); //width,height,left,top,advance, xoff, yoff);
-
-            g.metrics.width   = glyph._metrics.width/64;  // spans.bounds.width();    // these include borders
-            g.metrics.height  = glyph._metrics.height/64; // spans.bounds.height();
-            g.metrics.left    = glyph._metrics.horiBearingX/64; // - border;
-            g.metrics.top     = glyph._metrics.horiBearingY/64; // + border; // spans.bounds.ymax;
-            g.metrics.advance = glyph._metrics.horiAdvance/64;
-
-            g.xoff = -spans.bounds.xmin;
-            g.yoff = -spans.bounds.ymin;
-
-            // TODO: write a test to check if margin is enough to handle xoff and yoff
-
-            // prepare image of glyph
-            // g.image.resize(spans.bounds.width(), spans.bounds.height());
-            for (auto &s: spans.spans)
-            {
-                // using namespace freetype::io;
-                // std::cout << s << std::endl;
-                int i = s.y - spans.bounds.ymin;
-                int j = s.x - spans.bounds.xmin;
-                // int linear_index = (img_height - 1 - yy) * img_width + xx;
-                for (int jj = 0; jj < s.width; ++jj) {
-                    g.image(i, j + jj) = s.coverage;
-                    // g.image(height - 1 - i, j + jj) = s.coverage;
-                }
-                // printf("\n");
-            }
-
-
-                    // int left         =  spans.bounds.xmin;       // glyph._metrics.horiBearingX/64; // - border;
-                    // int top          =  spans.bounds.ymax + 1;   // glyph._metrics.horiBearingY/64; // + border; // spans.bounds.ymax;
-
-//            // FT_Bitmap bitmap = slot->bitmap;
-//            int width        =  glyph._metrics.width;  // spans.bounds.width();    // these include borders
-//            int height       =  glyph._metrics.height; // spans.bounds.height();
-//            // int left         =  spans.bounds.xmin;       // glyph._metrics.horiBearingX/64; // - border;
-//            // int top          =  spans.bounds.ymax + 1;   // glyph._metrics.horiBearingY/64; // + border; // spans.bounds.ymax;
-//            int left         =  glyph._metrics.horiBearingX/64; // - border;
-//            int top          =  glyph._metrics.horiBearingY/64; // + border; // spans.bounds.ymax;
-//            int advance      =  glyph._metrics.horiAdvance/64;
-
-//            int xoff         = -span.bounds.xmin;
-//            int yoff         = -span.bounds.ymin; // height - (span.bounds.ymax + 1); // + (g->image.height - g->top);
-
-//            printf("width:      %4d\n",width);
-//            printf("height:     %4d\n",height);
-//            printf("left:       %4d\n",left);
-//            printf("top:        %4d\n",top);
-//            printf("advance:    %4d\n",advance);
-//            printf("pitch:      %4d\n",bitmap.pitch);
-//            printf("pixel_mode: %4d\n",bitmap.pixel_mode);
-
-            // create glyph
-
+        auto error = FT_New_Face( library._library, ttf_filename.c_str(), 0, &_face );
+        if (error) {
+            throw FreeTypeException("Could not create face");
         }
     }
-
-    int glyph_good_width, glyph_good_height;
-
-    glyph_list.getGoodGlyphSize(0, glyph_good_width, glyph_good_height);
-
-    std::cout << "good size: " << glyph_good_width << ", " << glyph_good_height << std::endl;
-
-    glyph_list.save(img_width, margin, false, output_filename);
-
-    return 0;
-
-}
-
-
-
-//    FT_Done_Face    ( face );
-//    FT_Done_FreeType( library );
-
-//#if 1
-//#else
-//            Glyph &g = glyph_list.addGlyph(code,width,height,left,top,advance);
-//            for (int i=0;i<height;i++) {
-//                for (int j=0;j<pitch;j++) {
-//                    Pixel value = slot->bitmap.buffer[i * pitch + j];
-//                    if (j * 8 > width)
-//                        break; // row is over
-//                    printf("%02x ",value);
-//                    for (int k=0;k<8;k++) {
-//                        if (8 * j + k >= width)
-//                            break;
-//                        Pixel pk = (value & (1 << (7 - k)) ? 255 : 0);
-//                        // printf("%02x ",pk);
-//                        g.image(i,j + k) = pk;
-//                    }
-//                }
-//                printf("\n");
-//            }
-//#endif
+    
+    Face::~Face()
+    {
+        // FT_Done_Face(_face);
+    }
+    
+    Face& Face::setCharSize(int pt_size, int dpi)
+    {
+        auto error = FT_Set_Char_Size(_face,  pt_size * 64, pt_size * 64, dpi, dpi);
+        if (error) {
+            throw FreeTypeException("Could not set char size");
+        }
+        return *this;
+    }
+    
+    
+    
+    static void _raster_callback(const int y,
+                                 const int count,
+                                 const FT_Span * const spans,
+                                 void * const user)
+    {
+        Spans* sptr = (Spans*) user;
+        for (int i = 0; i < count; ++i)
+            sptr->insert(Span(spans[i].x, y, spans[i].len, spans[i].coverage));
+    }
+    
+    auto Face::glyph(Character code) -> Glyph
+    {
+        FT_Error error;
+        
+        auto _glyph_index = FT_Get_Char_Index(_face, code);
+        
+        error = FT_Load_Glyph(_face, _glyph_index, FT_LOAD_NO_BITMAP);
+        if (error) {
+            throw FreeTypeException("Could not load glyph");
+        }
+        
+        FT_Glyph _glyph;
+        error = FT_Get_Glyph(_face->glyph, &_glyph);
+        if (error) {
+            throw FreeTypeException("Could not load glyph");
+        }
+        
+        Glyph result(code, _face->glyph->metrics);
+        
+        float border_width = 0.0f;
+        
+        // now get the opacity texture
+        FT_Stroker _stroker;
+        FT_Stroker_New(library._library, &_stroker);
+        FT_Stroker_Set(_stroker,
+                       (int)(border_width * 64),
+                       FT_STROKER_LINECAP_ROUND,  // FT_STROKER_LINECAP_SQUARE
+                       FT_STROKER_LINEJOIN_ROUND, // FT_STROKER_LINEJOIN_MITER
+                       0);
+        
+        static const int outside       = 0;
+        static const int destroy_glyph = 1;
+        FT_Glyph_StrokeBorder(&_glyph, _stroker, outside, destroy_glyph);
+        
+        FT_Outline *outline = &reinterpret_cast<FT_OutlineGlyph>(_glyph)->outline;
+        
+        FT_Raster_Params params;
+        std::memset(&params, 0, sizeof(params));
+        params.flags      = FT_RASTER_FLAG_AA | FT_RASTER_FLAG_DIRECT;
+        params.gray_spans = _raster_callback;
+        params.user       = static_cast<void*>(&result.spans); // object
+        
+        //
+        FT_Outline_Render(library._library,
+                          outline,
+                          &params);
+        
+        // Clean up afterwards.
+        FT_Stroker_Done(_stroker);
+        
+        // std::cout << result.spans.bounds << std::endl;
+        
+        return result;
+        
+    }
+        
+        
+        
+        //    bool Glyph::hasOutlineInfo()
+        //    {
+        //        return _glyph->format == FT_GLYPH_FORMAT_OUTLINE;
+        //    }
+        
+        
+        //
+        //    auto Glyph::_render(FT_Outline* outline) -> Spans
+        //    {
+        //        Spans result;
+        //
+        //        FT_Raster_Params params;
+        //        std::memset(&params, 0, sizeof(params));
+        //        params.flags      = FT_RASTER_FLAG_AA | FT_RASTER_FLAG_DIRECT;
+        //        params.gray_spans = _raster_callback;
+        //        params.user       = static_cast<void*>(&result); // object
+        //
+        //        //
+        //        FT_Outline_Render(face.library._library,
+        //                          outline,
+        //                          &params);
+        //
+        //        return result;
+        //    }
+        //
+        //
+        //    auto Glyph::render(float width) -> Spans
+        //    {
+        //        FT_Stroker _stroker;
+        //        FT_Stroker_New(face.library._library, &_stroker);
+        //        FT_Stroker_Set(_stroker,
+        //                       (int)(width * 64),
+        //                       FT_STROKER_LINECAP_ROUND,  // FT_STROKER_LINECAP_SQUARE
+        //                       FT_STROKER_LINEJOIN_ROUND, // FT_STROKER_LINEJOIN_MITER
+        //                       0);
+        //
+        //        static const int outside       = 0;
+        //        static const int destroy_glyph = 1;
+        //        FT_Glyph_StrokeBorder(&_glyph, _stroker, outside, destroy_glyph);
+        //
+        //        FT_Outline *outline = &reinterpret_cast<FT_OutlineGlyph>(_glyph)->outline;
+        //
+        //        Spans result = _render(outline);
+        //
+        //        // Clean up afterwards.
+        //        FT_Stroker_Done(_stroker);
+        //
+        //        std::cout << result.bounds << std::endl;
+        //
+        //        return result;
+        //        }
+        
+        
+        
+        
+        
+        
+        
+        
+        //        void Face::load(Glyph &glyph)
+        //        {
+        //            auto error = FT_Load_Glyph(_face, glyph._glyph_index, FT_LOAD_NO_BITMAP);
+        //            if (error) {
+        //                throw FreeTypeException("Could not load glyph");
+        //            }
+        //            this->last_loaded_glyph_code = glyph.code;
+        //        }
+        
+        
+        std::ostream &operator<<(std::ostream &os, const FT_Glyph_Metrics &m)
+        {
+            os << "FT_Glyph_Metrics [ " << std::endl;
+            os << "    height:        " << m.height << std::endl;
+            os << "    width:         " << m.width << std::endl;
+            os << "    horiAdvance:   " << m.horiAdvance << std::endl;
+            os << "    horiBearingX:  " << m.horiBearingX << std::endl;
+            os << "    horiBearingY:  " << m.horiBearingY << std::endl;
+            os << "    vertAdvance:   " << m.vertAdvance << std::endl;
+            os << "    vertBearingX:  " << m.vertBearingX << std::endl;
+            os << "    vertBearingY:  " << m.vertBearingY << std::endl;
+            os << "]" << std::endl;
+            
+            return os;
+        }
+        
+        
+        std::ostream &operator<<(std::ostream &os, const Rect &r)
+        {
+            os << "Rect [ " << std::endl;
+            os << "    xmin: " << r.xmin << std::endl;
+            os << "    ymin: " << r.ymin << std::endl;
+            os << "    xmax: " << r.xmax << std::endl;
+            os << "    ymax: " << r.ymax << std::endl;
+            os << "]" << std::endl;
+            
+            return os;
+        }
+        
+        //------------------------------------------------------------------------------
+        // Glyph
+        //------------------------------------------------------------------------------
+        
+        Glyph::Glyph(Character code, const GlyphMetrics& metrics):
+        code(code), metrics(metrics)
+        {}
+        
+        //------------------------------------------------------------------------------
+        // FreeTypeException Impl.
+        //------------------------------------------------------------------------------
+        
+        FreeTypeException::FreeTypeException(const std::string &message):
+        std::runtime_error(message)
+        {}
+        
+        //------------------------------------------------------------------------------
+        // Span
+        //------------------------------------------------------------------------------
+        
+        Span::Span(int _x, int _y, int _width, int _coverage)
+        : x(_x), y(_y), width(_width), coverage(_coverage) { }
+        
+        
+        //------------------------------------------------------------------------------
+        // io
+        //------------------------------------------------------------------------------
+        
+        std::ostream& io::operator<<(std::ostream &os, const Span &span) {
+            os << "Span[x:" << span.x << ", y: " << span.y << ", w: " << span.width << ", coverage: " << span.coverage << "]";
+            return os;
+        }
+        
+        //------------------------------------------------------------------------------
+        // Vec2
+        //------------------------------------------------------------------------------
+        
+        Vec2::Vec2(int x, int y):
+        x(x), y(y)
+        {}
+        
+        //------------------------------------------------------------------------------
+        // Rect
+        //------------------------------------------------------------------------------
+        
+        Rect::Rect(int xmin, int ymin, int xmax, int ymax)
+        : xmin(xmin), ymin(ymin), xmax(xmax), ymax(ymax)
+        {}
+        
+        void Rect::insert(const Vec2 &r)
+        {
+            xmin = std::min(xmin, r.x);
+            ymin = std::min(ymin, r.y);
+            xmax = std::max(xmax, r.x);
+            ymax = std::max(ymax, r.y);
+        }
+        
+        void Rect::merge(const Rect &other)
+        {
+            xmin = std::min(xmin, other.xmin);
+            ymin = std::min(ymin, other.ymin);
+            xmax = std::max(xmax, other.xmax);
+            ymax = std::max(ymax, other.ymax);
+        }
+        
+        int Rect::width() const
+        {
+            return xmax - xmin + 1;
+        }
+        
+        int Rect::height() const
+        {
+            return ymax - ymin + 1;
+        }
+        
+        auto operator+(const Rect& a, const Rect &b) -> Rect {
+            return Rect(std::min(a.xmin, b.xmin),
+                        std::min(a.ymin, b.ymin),
+                        std::max(a.xmax, b.xmax),
+                        std::max(a.ymax, b.ymax));
+        }
+        
+        
+        //------------------------------------------------------------------------------
+        // Spans
+        //------------------------------------------------------------------------------
+        
+        void Spans::insert(const Span &span)
+        {
+            spans.push_back(span);
+            bounds.insert({span.x, span.y});
+            bounds.insert({span.x+span.width-1, span.y});
+        }
+        
+        }
+        
+        
+        

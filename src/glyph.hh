@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include <image.hh>
+#include "image.hh"
 
 struct Metrics {
 public:

@@ -1,4 +1,4 @@
-#include <glyph.hh>
+#include "glyph.hh"
 
 #include <cmath>
 #include <iostream>
@@ -74,7 +74,7 @@ void GlyphList::save(int img_max_width, int margin, bool squared, std::string fi
     this->getGoodGlyphSize(margin, glyph_width, glyph_height);
 
     // no. glyphs
-    int n = this->glyphs.size();
+    auto n = this->glyphs.size();
 
     //
     // int rows = std::ceil((1.0f * n * glyph_width) / image_max_width);
