@@ -142,6 +142,9 @@ namespace tmfont {
     
     struct Glyph {
     public:
+        Glyph() = default;
+        Glyph(Glyph&& other) = default;
+        Glyph& operator=(Glyph&& other) = default;
         Glyph(Character code, const GlyphMetrics& metrics);
     public:
         Character    code;
