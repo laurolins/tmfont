@@ -1,7 +1,7 @@
 #include "tmfont.hh"
 
 #include <cstring>
-
+#include <algorithm>
 
 namespace tmfont {
     
