@@ -20,8 +20,9 @@ endif(UNIX)
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
-message("FREETYPE_INCLUDE_DIRS: ${FREETYPE_INCLUDE_DIRS}")
-message("FREETYPE_LIBRARIES:    ${FREETYPE_LIBRARIES}")
+message("---- freetype ----")
+message("FREETYPE_INCLUDE_DIRS:          ${FREETYPE_INCLUDE_DIRS}")
+message("FREETYPE_LIBRARIES:             ${FREETYPE_LIBRARIES}")
 
 add_subdirectory (src)
 
